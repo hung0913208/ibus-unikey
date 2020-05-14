@@ -3,10 +3,10 @@
 #include <gdk/gdkkeysyms.h>
 
 #include "mactab.h"
-#include "unikey_config.h"
+#include "Config.h"
 
-#include "macro_utils.h"
-#include "signal_handlers.h"
+#include "Utils.h"
+#include "Handlers.h"
 
 #define _(str) gettext(str)
 
@@ -36,7 +36,7 @@ void on_btn_close_clicked(GtkButton* btn, gpointer user_data)
 
 static void cbb_config_update(GtkComboBox* cbb, const gchar* key)
 {
-    GValue val = {0};
+    GValue val = G_VALUE_INIT;
     GtkTreeIter iter;
     GtkTreeModel* model;
 
@@ -61,7 +61,7 @@ void on_output_charset_changed(GtkComboBox* cbb, gpointer user_data)
 
 void cbb_config_set_active(GtkComboBox* cbb, const gchar* key)
 {
-    GValue val = {0};
+    GValue val = G_VALUE_INIT;
     GtkTreeIter iter;
     GtkTreeModel* model;
 

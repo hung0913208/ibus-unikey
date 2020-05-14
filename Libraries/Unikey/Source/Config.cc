@@ -1,8 +1,4 @@
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#include "unikey_config.h"
+#include "Config.h"
 
 static GSettings* settings;
 

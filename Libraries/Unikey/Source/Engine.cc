@@ -12,7 +12,7 @@
 #include "vnconv.h"
 
 #include "engine_private.h"
-#include "unikey_config.h"
+#include "Config.h"
 
 #define _(string) gettext(string)
 
@@ -44,6 +44,7 @@ GType ibus_unikey_engine_get_type(void)
         sizeof(IBusUnikeyEngine),
         0,
         (GInstanceInitFunc)ibus_unikey_engine_init,
+        NULL
     };
 
     if (type == 0)

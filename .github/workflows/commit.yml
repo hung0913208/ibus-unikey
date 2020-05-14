@@ -1,18 +1,19 @@
-name: Verify commit with the simple test suite                                                                                                                                                                  
+name: Verify commit with the simple test suite
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-                   
+on: [push, pull_request]
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cxx: [g++]
 
     steps:
       - uses: actions/checkout@v2
       - name: prepare
         run: ./Tests/Pipeline/Prepare.sh
       - name: build and test
+        env:
+          CXX: ${{ matrix.cxx }}
         run: ./Tests/Pipeline/Build.sh

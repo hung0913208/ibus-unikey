@@ -7,6 +7,8 @@
 
 #include "ukengine.h"
 
+#define USE_BASE_WITH_FULL_PATH_HEADER 1
+
 #define UNIKEY_MACRO_FILE        ".ibus/unikey/macro"
 
 #define UNIKEY_GSCHEMA_ID        "org.freedesktop.ibus.engine.unikey"

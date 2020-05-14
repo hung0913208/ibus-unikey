@@ -6,7 +6,7 @@
 #include <locale.h>
 #include <gtk/gtk.h>
 
-#include "unikey_config.h"
+#include "Config.h"
 
 #define _(string) gettext(string)
 
