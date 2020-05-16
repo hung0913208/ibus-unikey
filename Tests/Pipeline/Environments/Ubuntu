@@ -1,0 +1,59 @@
+#!/bin/bash
+
+ROOT="$(git rev-parse --show-toplevel)"
+BASE="$ROOT/Base"
+
+source "$BASE/Tests/Pipeline/Libraries/Logcat.sh"
+source "$BASE/Tests/Pipeline/Libraries/Package.sh"
+
+function fetch() {
+	if [ "$1" = 'iso' ]; then
+		URL=$(curl -ksS https://ubuntu.com/download/desktop | grep "/download/desktop/thank-you" | awk '{ split($0,a,"href=\""); split(a[2],b,"\" onclick="); print b[1] }')
+		VERSION=$(echo $URL | awk '{ split($0,a,"version="); split(a[2],b,"&amp;"); print b[1] }')
+		ARCH=$(echo $URL | awk '{ split($0,a,"architecture="); print a[2] }')
+
+		if [[ ${#URL} -gt 0 ]]; then
+			curl -ksSo ${2}/${3} https://releases.ubuntu.com/$VERSION/ubuntu-${VERSION}-desktop-${ARCH}.iso
+		else
+			return -1
+		fi
+	fi
+}
+
+function extract() {
+	if [ "$1" = 'iso' ]; then
+		return -1
+	fi
+}
+
+function configure() {
+	if [ "$1" = 'iso' ]; then
+		echo 'root:rootroot' | sudo chpasswd -e
+
+		if ! sudo apt-get update &> /dev/null; then
+			return -1
+		elif ! sudo apt-get install -y openssh-server &> /dev/null; then
+			return -1
+		elif ! sudo apt-get clean &> /dev/null; then
+			return -1
+		elif ! sudo systemctl enable ssh &> /dev/null; then
+			return -1
+		fi
+	fi
+}
+
+function finish() {
+	WORKSPACE="$2"
+	LIVECD="$WORKSPACE/livecd"
+
+	info "compress $WORKSPACE/squashfs to $LIVECD/casper/filesystem.squashfs"
+
+	if [ "$1" = 'iso' ]; then
+		$SU chmod +w $LIVECD/casper/filesystem.manifest
+		$SU chroot $WORKSPACE/squashfs dpkg-query -W --showformat='${Package} ${Version}\n' | $SU tee $LIVECD/casper/filesystem.manifest	
+		$SU cp $LIVECD/casper/filesystem.manifest $LIVECD/casper/filesystem.manifest-desktop
+		$SU mksquashfs $WORKSPACE/squashfs $LIVECD/casper/filesystem.squashfs
+		$SU bash -c "cd $LIVECD && find . -type f -exec md5sum {} +" | $SU tee $LIVECD/md5sum.txt
+
+	fi
+}
