@@ -54,19 +54,4 @@ else
 	PIPELINE="$(dirname "$0")"
 	CURRENT="$(pwd)"
 	SCRIPT="$(basename "$0")"
-
-	# @NOTE: fetch the latest release of supported distros so we can
-       	# use them to verify our ibus-unikey black build before we deliver
-	# this to the marketplace.
-
-	for DISTRO in $(ls -1c $ROOT/Tests/Pipeline/Environments); do
-		if $ROOT/Tools/Utilities/generate-customized-livecd-image.sh 	\
-				--input-type iso 				\
-				--output-type iso				\
-				--env $ROOT/Tests/Pipeline/Environments/$DISTRO; then
-			info "successful generate $DISTRO's ISO image to start a new simulator"
-		else
-			error "can't build $DISTRO's ISO image"
-		fi
-	done
 fi

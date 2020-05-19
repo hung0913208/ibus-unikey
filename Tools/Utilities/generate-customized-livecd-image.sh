@@ -66,6 +66,10 @@ Usage: $(basename $0) [ --input-type TYPE ] [ --env SCRIPT ] [ --output-type ] |
 	--env SCRIPT		The environment script which is used to help
 				to provide stub to build ISO images
 
+	--nfs
+
+	--no-image
+
 	--help			Show the script's usage
 	"""
 }
@@ -74,19 +78,21 @@ ITYPE="iso"
 OTYPE="nfs"
 TEMP="$(mktemp -d --tmpdir=$HOME)"
 SCRIPT="$(basename "$0")"
+ADDRESS="\*"
 CURRENT="$(pwd)"
-NEWCD=$TEMP/workspace/livecd
 OLDCD=$TEMP/livecd
-WORKSPACE=$TEMP/workspace
+GENIMAGE=1
 ISQUASHFS=$TEMP/squashfs
-OSQUASHFS=$WORKSPACE/squashfs
+WORKSPACE=$TEMP/workspace
 
 while [ $# -gt 0 ]; do
 	case $1 in
 		--input-type)	ITYPE="$2"; shift;;
 		--output-type)	OTYPE="$2"; shift;;
+		--no-image)	GENIMAGE=0;;
 		--output)	OUTPUT="$2"; shift;;
 		--env)		ENVIRONMENT="$2"; shift;;
+		--nfs)		ADDRESS="$2"; shift;;
 		--help)		usage;;
 		(--) 		shift; break;;
 		(-*) 		error "unrecognized option $1";;
@@ -94,6 +100,13 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
+
+if [[ $GENIMAGE -eq 0 ]]; then
+	WORKSPACE=$OUTPUT
+fi
+
+NEWCD=$WORKSPACE/livecd
+OSQUASHFS=$WORKSPACE/squashfs
 
 trap clean EXIT
 
@@ -104,6 +117,7 @@ else
 fi
 
 NAME=$(basename $ENVIRONMENT)
+VERSION="$(version)"
 
 if [ "$ITYPE" = 'iso' ]; then
 	if ! $SU modinfo squashfs &> /dev/null; then
@@ -123,40 +137,91 @@ if [ $OTYPE != 'iso' ] && [[ ${#OUTPUT} -gt 0 ]]; then
 	OSQUASHFS=$OUTPUT
 fi
 
-mkdir -p $WORKSPACE
+mkdir -p $WORKSPACE/livecd/casper
 mkdir -p $OSQUASHFS
 
 if [ "$ITYPE" = 'iso' ]; then
+	if [[ ${#MEGA} -gt 0 ]]; then
+		USER=$(echo $MEGA | awk '{ split($0,a,":"); print a[1] }')
+		PASSWORD=$(echo $MEGA | awk '{ split($0,a,":"); print a[2] }')
+	fi
+
+	if [[ $GENIMAGE -eq 0 ]]; then
+		CACHE=${NAME}.squashfs
+		MIRROR=$WORKSPACE/livecd/casper
+	else
+		CACHE=${NAME}.iso
+		MIRROR=$OUTPUT
+	fi
+
+	if [[ ${#MEGA} -gt 0 ]] && megaget --path $(pwd)/${NAME}.ver --username $USER --password $PASSWORD /Root/$PROJECT/${NAME}.ver; then
+		if [ "$VERSION" != "$(cat $(pwd)/${NAME}.ver)" ]; then
+			MEGA=""
+
+			echo "$VERSION" > $(pwd)/${NAME}.ver
+
+			megarm --username $USER --password $PASSWORD /Root/$PROJECT/${NAME}.ver
+			megarm --username $USER --password $PASSWORD /Root/$PROJECT/${CACHE}
+		fi
+	else
+		MEGA=""
+	fi
+
 	# @NOTE: this script supports expecially with ISO image input so i
 	# will provide features to help to build new ISO image easier 
 
-	if ! fetch $ITYPE $TEMP ${NAME}-latest.iso; then
-		error "can't fetch $NAME's release"
-	fi
+	if [[ ${#MEGA} -eq 0 ]] || ! megaget --path $MIRROR --username $USER --password $PASSWORD /Root/$PROJECT/$CACHE; then
+		DONE=0
 
-	mkdir -p $OLDCD
-	mkdir -p $ISQUASHFS
+		if ! fetch $ITYPE $TEMP ${NAME}-latest.iso; then
+			error "can't fetch $NAME's release"
+		fi
 
-	# @NOTE: these steps are used to clone a new workspace which base
-	# on the inpu ISO image
+		mkdir -p $OLDCD
+		mkdir -p $ISQUASHFS
+	
+		# @NOTE: these steps are used to clone a new workspace which base
+		# on the inpu ISO image
+	
+		info "copy $ISQUASHFS to $OSQUASHFS"
+	
+		if ! $SU mount -o loop $TEMP/${NAME}-latest.iso $OLDCD &> /dev/null; then
+			error "can't mount $TEMP/${NAME}-latest.iso"
+		elif ! $SU mount -t squashfs -o loop $OLDCD/casper/filesystem.squashfs $ISQUASHFS &> /dev/null; then
+			error "can't mount $OLDCD/casper/filesystem.squashfs"
+		elif ! $SU cp -a $ISQUASHFS/* $OSQUASHFS &> /dev/null; then
+			error "can't copy file in $ISQUASHFS to $OSQUASHFS"
+		fi	
+	elif [[ $GENIMAGE -eq 0 ]]; then
+		DONE=1
 
-	if ! $SU mount -o loop $TEMP/${NAME}-latest.iso $OLDCD &> /dev/null; then
-		error "can't mount $TEMP/${NAME}-latest.iso"
-	elif ! $SU mount -t squashfs -o loop $TEMP/livecd/casper/filesystem.squashfs $ISQUASHFS &> /dev/null; then
-		error "can't mount $TEMP/livecd/casper/filesystem.squashfs"
-	elif ! $SU cp -a $TEMP/squashfs/* $WORKSPACE/squashfs &> /dev/null; then
-		error "can't copy file in $TEMP/squashfs to $WORKSPACE/squashfs"
-	elif ! rsync --exclude=/livecd/casper/filesystem.squashfs -a $OLDCD $WORKSPACE &> /dev/null; then
-		error "can't sync $OLDCD to $WORKSPACE"
+		if ! fetch $ITYPE $TEMP ${NAME}-latest.iso; then
+			error "can't fetch $NAME's release"
+		fi
+
+		mkdir -p $OLDCD
+		mkdir -p $ISQUASHFS	
+
+		if ! $SU mount -o loop $TEMP/${NAME}-latest.iso $OLDCD &> /dev/null; then
+			error "can't mount $TEMP/${NAME}-latest.iso"
+		fi
+	else
+		exit 0
 	fi
 elif ! fetch $ITYPE $TEMP $WORKSPACE; then
 	error "can't fetch files to build a new ISO image"
-elif ! extract $ITYPE $TEMP $WORKSPACE $WORKSPACE/squashfs; then
+fi
+
+if ! extract $ITYPE $TEMP $WORKSPACE $OSQUASHFS $MIRROR $DONE; then
 	error "extract packages to rootfs"
 fi
 
-$SU cp /etc/resolv.conf $WORKSPACE/squashfs/etc/resolv.conf
-$SU cp $ENVIRONMENT $WORKSPACE/squashfs/$NAME
+if [[ $DONE -eq 1 ]]; then
+	exit 0
+fi
+
+$SU cp /etc/resolv.conf $OSQUASHFS/etc/resolv.conf
+$SU cp $ENVIRONMENT $OSQUASHFS/$NAME
 
 info "reconfigure our new livecd"
 
@@ -186,31 +251,53 @@ fi
 """; then
 	error "can't configure a custom livecd"
 else
-	if ! finish $OTYPE $WORKSPACE; then
-		error "can't finish preparing stub to build a new ISO image"
+	if [ "$OTYPE" = 'iso' ]; then
+		if ! finish $OTYPE $NEWCD $WORKSPACE $OSQUASHFS; then
+			error "can't finish preparing stub to build a new ISO image"
+		fi
+	else
+		if ! finish $OTYPE $OLDCD $WORKSPACE $OSQUASHFS; then
+			error "can't finish preparing stub to build a new ISO image"
+		fi
 	fi
 
 	info "generate $ROOT/${NAME}.iso base on the latest release $NAME's livecd"
 
 	if [ "$OTYPE" = 'iso' ]; then
-		cd $NEWCD || error "can't cd to $NEWCD"
+		if [[ $GENIMAGE -ne 0 ]]; then
+			cd $NEWCD || error "can't cd to $NEWCD"
 	
-		$SU mkisofs -r -V "Ubuntu-Live" 	\
-			-b isolinux/isolinux.bin 	\
-			-c isolinux/boot.cat 		\
-			-cache-inodes -J -l 		\
-			-no-emul-boot 			\
-			-boot-load-size 4 		\
-			-boot-info-table 		\
-			-o $OUTPUT/${NAME}.iso .
+			$SU mkisofs -r -V "Ubuntu-Live" 	\
+				-b isolinux/isolinux.bin 	\
+				-c isolinux/boot.cat 		\
+				-cache-inodes -J -l 		\
+				-no-emul-boot 			\
+				-boot-load-size 4 		\
+				-boot-info-table 		\
+				-o $OUTPUT/${NAME}.iso .
 		
-		if [[ $? -eq 0 ]] && [ -f $ROOT/${NAME}.iso ]; then
-			info "upload $ROOT/${NAME}.iso to global storage"
+			if [[ $? -ne 0 ]] || [ ! -f $ROOT/${NAME}.iso ]; then
+				exit -1
+			else
+				MIRROR=$OUTPUT/${NAME}.iso
+			fi
 		else
-			exit -1
+			MIRROR=$(find $NEWCD -name *.squashfs)
+		fi
+
+		if [[ ${#USER} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
+			info "upload $MIRROR to global storage"
+
+			if ! megaput --path /Root/$PROJECT/$CACHE --username $USER --password $PASSWORD $MIRROR; then
+				warning "can't upload $MIRROR to global storage"
+			fi
+
+			if ! megaput --path /Root/$PROJECT/${NAME}.ver --username $USER --password $PASSWORD $(pwd)/${NAME}.ver; then
+				warning "can't upload $(pwd)/${NAME}.ver to global storage"
+			fi
 		fi
 	elif [ $OTYPE = 'nfs' ]; then
-		if echo "$OUTPUT * (ro,sync,no_wdelay,insecure_locks,no_root_squash,insecure)" | $SU tee -a /etc/exports; then
+		if echo "$OUTPUT $ADDRESS(ro,sync,no_wdelay,insecure_locks,no_root_squash,insecure)" | $SU tee -a /etc/exports &> /dev/null; then
 			if ! $SU systemctl restart nfs-kernel-server; then
 				error "can't restart nfs-kernel-server"
 			fi

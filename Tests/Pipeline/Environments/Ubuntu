@@ -1,10 +1,30 @@
 #!/bin/bash
 
-ROOT="$(git rev-parse --show-toplevel)"
-BASE="$ROOT/Base"
+if [[ $(ls -id / | awk '{ print $1 }') -eq 2 ]]; then
+	ROOT="$(git rev-parse --show-toplevel)"
+	BASE="$ROOT/Base"
 
-source "$BASE/Tests/Pipeline/Libraries/Logcat.sh"
-source "$BASE/Tests/Pipeline/Libraries/Package.sh"
+	source "$BASE/Tests/Pipeline/Libraries/Logcat.sh"
+	source "$BASE/Tests/Pipeline/Libraries/Package.sh"
+fi
+
+function interface() {
+	echo "ens4"
+}
+
+function username() {
+	echo "root"
+}
+
+function password() {
+	echo "rootroot"
+}
+
+function version() {
+	URL=$(curl -ksS https://ubuntu.com/download/desktop | grep "/download/desktop/thank-you" | awk '{ split($0,a,"href=\""); split(a[2],b,"\" onclick="); print b[1] }')
+
+	echo "$(echo $URL | awk '{ split($0,a,"version="); split(a[2],b,"&amp;"); print b[1] }')"
+}
 
 function fetch() {
 	if [ "$1" = 'iso' ]; then
@@ -21,14 +41,40 @@ function fetch() {
 }
 
 function extract() {
+	CHECK=$6
+	OLDCD=$2/livecd
+	MIRROR=$5
+	ISQUASHFS=$2/squashfs
+	WORKSPACE=$3
+
 	if [ "$1" = 'iso' ]; then
-		return -1
+		info "synchronize $OLDCD to $WORKSPACE"
+
+		if [ -f $MIRROR/Ubuntu.squashfs ]; then
+			if ! mv $MIRROR/Ubuntu.squashfs $MIRROR/filesystem.squashfs; then
+				error "can't rename ${NAME}.squashfs"
+			fi
+		elif [[ $CHECK -eq 1 ]]; then
+			error "can't find $MIRROT/Unbuntu.squashfs as expected"
+		fi
+
+		if ! rsync --exclude=/livecd/casper/filesystem.squashfs -a $OLDCD $WORKSPACE &> /dev/null; then
+			error "can't sync $OLDCD to $WORKSPACE"
+		fi
+
+		return 0
 	fi
 }
 
 function configure() {
+	# @NOTE: this function should be run inside the rootfs when we start chroot
+
 	if [ "$1" = 'iso' ]; then
-		echo 'root:rootroot' | sudo chpasswd -e
+		# @NOTE: change password root to rootroot as the default password
+		# so we can ssh to this machine and perform testing on it
+		if ! echo 'root:rootroot' | chpasswd; then
+			return 
+		fi
 
 		if ! sudo apt-get update &> /dev/null; then
 			return -1
@@ -39,21 +85,62 @@ function configure() {
 		elif ! sudo systemctl enable ssh &> /dev/null; then
 			return -1
 		fi
+
+		# @NOTE: config nameserver to make nslookup, dig work
+		echo """
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+""" >> /etc/resolv.conf
+
+		# @NOTE: allow root access
+		echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 	fi
 }
 
 function finish() {
-	WORKSPACE="$2"
-	LIVECD="$WORKSPACE/livecd"
-
-	info "compress $WORKSPACE/squashfs to $LIVECD/casper/filesystem.squashfs"
+	OSQUASHFS="$4"
+	WORKSPACE="$3"
+	LIVECD="$2"
 
 	if [ "$1" = 'iso' ]; then
-		$SU chmod +w $LIVECD/casper/filesystem.manifest
-		$SU chroot $WORKSPACE/squashfs dpkg-query -W --showformat='${Package} ${Version}\n' | $SU tee $LIVECD/casper/filesystem.manifest	
-		$SU cp $LIVECD/casper/filesystem.manifest $LIVECD/casper/filesystem.manifest-desktop
-		$SU mksquashfs $WORKSPACE/squashfs $LIVECD/casper/filesystem.squashfs
-		$SU bash -c "cd $LIVECD && find . -type f -exec md5sum {} +" | $SU tee $LIVECD/md5sum.txt
+		mkdir -p $LIVECD/casper
 
+		info "generate $LIVECD/casper/filesystem.manifest and $LIVECD/casper/filesystem.manifest-desktop"
+		if [ -f $LIVECD/casper/filesystem.manifest ]; then
+			$SU chmod +w $LIVECD/casper/filesystem.manifest
+		else
+			touch $LIVECD/casper/filesystem.manifest
+		fi
+
+		if $SU chroot $WORKSPACE/squashfs dpkg-query -W --showformat='${Package} ${Version}\n' | $SU tee $LIVECD/casper/filesystem.manifest &> /dev/null; then
+			$SU cp $LIVECD/casper/filesystem.manifest $LIVECD/casper/filesystem.manifest-desktop
+		else
+			error "can't generate $LIVECD/casper/filesystem.manifest and $LIVECD/casper/filesystem.manifest-desktop"
+		fi
+
+		info "compress $LIVECD/casper/filesystem.squashfs"
+		if $SU mksquashfs $WORKSPACE/squashfs $LIVECD/casper/filesystem.squashfs; then
+			$SU bash -c "cd $LIVECD && find . -type f -exec md5sum {} +" | $SU tee $LIVECD/md5sum.txt &> /dev/null
+		else
+			error "can't fully compress filesystem.squashfs"
+		fi
+	elif [ -d $OSQUASHFS/casper ]; then
+		info "copy vmlinuz and initrd from $LIVECD/casper to $OSQUASHFS/casper"
+
+		if ! $SU rsync -zh $LIVECD/casper/vmlinuz $OSQUASHFS/casper; then
+			error "can't copy $LIVECD/casper/vmlinuz to $OSQUASHFS/casper"
+		elif ! $SU rsync -zh $LIVECD/casper/initrd $OSQUASHFS/casper; then
+			error "can't copy $LIVECD/casper/initrd to $OSQUASHFS/casper"
+		fi
+	else
+		mkdir -p $OSQUASHFS/boot
+		
+		info "copy vmlinuz and initrd from $LIVECD/casper to $OSQUASHFS/boot"
+
+		if ! $SU rsync -zh $LIVECD/casper/vmlinuz $OSQUASHFS/boot; then
+			error "can't copy $LIVECD/casper/vmlinuz to $OSQUASHFS/boot"
+		elif ! $SU rsync -zh $LIVECD/casper/initrd $OSQUASHFS/boot; then
+			error "can't copy $LIVECD/casper/initrd to $OSQUASHFS/boot"
+		fi
 	fi
 }

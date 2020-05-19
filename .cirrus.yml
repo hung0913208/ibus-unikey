@@ -1,0 +1,15 @@
+task:
+  name: 
+  only_if: $CIRRUS_BRANCH == 'Test'
+  container:
+    image: ubuntu:latest
+    memory: 10G
+    cpu: 4
+    kvm: true
+  prepare_environment_script:
+    - apt update
+    - apt install -y qemu git curl
+  fetch_base_libraries_script:
+    - ./Tests/Pipeline/Prepare.sh --dry-run
+  build_and_test_script:
+    - ./Base/Tests/Pipeline/Create.sh

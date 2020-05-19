@@ -1,9 +1,21 @@
+dist: bionic
 language: cpp
+branches:
+  only:
+    - Tests
+    - build-ui-automate-simulator
 
 before_install:
-  - sudo apt-get install -y libibus-1.0-dev libgtk-3-dev
+  - sudo apt install -y qemu-kvm qemu-utils
 addons:
   apt:
     update: true
 
-script: mkdir build && cd build && cmake .. && make
+install:
+  - echo "is it suppoted kvm? $(egrep -c '(vmx|svm)' /proc/cpuinfo)"
+  - sudo lsmod | grep kvm
+  - if [ -f /dev/kvm ]; then echo "/dev/kvm exists"; fi
+
+script:
+  - ./Tests/Pipeline/Prepare.sh --dry-run
+  - ./Base/Tests/Pipeline/Create.sh
