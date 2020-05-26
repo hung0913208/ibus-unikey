@@ -1,4 +1,4 @@
-me: Verify commit with the simple test suite
+name: Verify commit with the simple test suite
 
 on: [push, pull_request]
 
@@ -7,8 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        cxx: [g++]
-
+        cxx: [g++, clang++]
+      
     steps:
       - uses: actions/checkout@v2
       - name: prepare

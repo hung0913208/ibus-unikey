@@ -50,8 +50,8 @@ function extract() {
 	if [ "$1" = 'iso' ]; then
 		info "synchronize $OLDCD to $WORKSPACE"
 
-		if [ -f $MIRROR/Ubuntu.squashfs ]; then
-			if ! mv $MIRROR/Ubuntu.squashfs $MIRROR/filesystem.squashfs; then
+		if [ -f $MIRROR/ubuntu.squashfs ]; then
+			if ! mv $MIRROR/ubuntu.squashfs $MIRROR/filesystem.squashfs; then
 				error "can't rename ${NAME}.squashfs"
 			fi
 		elif [[ $CHECK -eq 1 ]]; then

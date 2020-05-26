@@ -4,8 +4,8 @@
 # be used to build based on current branch you want to Tests
 
 PIPELINE="$(dirname "$0" )"
-source $PIPELINE/Libraries/Logcat.sh
-source $PIPELINE/Libraries/Package.sh
+source $PIPELINE/libraries/Logcat.sh
+source $PIPELINE/libraries/Package.sh
 
 SCRIPT="$(basename "$0")"
 
@@ -81,7 +81,7 @@ EOF
 			fi
 		fi
 
-		for DISTRO in $(ls -1c $ROOT/Tests/Pipeline/Environments); do
+		for DISTRO in $(ls -1c $ROOT/tests/pipeline/environments); do
 			IDX=$((IDX+1))
 
 			if [ $OTYPE = 'iso' ]; then
@@ -93,12 +93,12 @@ EOF
 
 			mkdir -p $ROOT/pxeboot/rootfs/$DISTRO
 
-			if $ROOT/Tools/Utilities/generate-customized-livecd-image.sh 	\
+			if $ROOT/tools/utilities/generate-customized-livecd-image.sh 	\
 					--input-type iso 				\
 					--output-type $OTYPE				\
 					--no-image					\
 					--output $ROOT/pxeboot/rootfs/$DISTRO		\
-					--env $ROOT/Tests/Pipeline/Environments/$DISTRO; then
+					--env $ROOT/tests/pipeline/environments/$DISTRO; then
 				info "successful generate $DISTRO's ISO image to start a new simulator"
 			else
 				error "can't build $DISTRO's ISO image"
@@ -200,7 +200,7 @@ $(netstat -tunlap)
 			fi
 
 			if [ ! -f $ROOT/pxeboot/pxelinux.cfg/default ]; then
-				source $ROOT/Tests/Pipeline/Environments/$DISTRO
+				source $ROOT/tests/pipeline/environments/$DISTRO
 
 				cat > $ROOT/pxeboot/pxelinux.cfg/default << EOF
 default install
@@ -318,7 +318,7 @@ EOF
 		# machines. According the instruction, we should define script
 		# Test.sh to control how to test automatically
 
-		cat > $ROOT/Tests/Pipeline/Test.sh << EOF
+		cat > $ROOT/tests/pipeline/test.sh << EOF
 #!/bin/bash
 IDX=0
 
@@ -351,6 +351,8 @@ function clean() {
 trap clean EXIT
 source $ROOT/Base/Tests/Pipeline/Libraries/Logcat.sh
 
+PASSED=1
+
 if ! ps -aux | grep dnsmasq | grep -v grep &> /dev/null; then
 	error "there are problems during starting dnsmasq"
 fi
@@ -370,30 +372,51 @@ if [ -f /.dockerenv ] || [[ $FORCE -eq 1 ]]; then
 fi
 
 if which qemu-system-x86_64 &> /dev/null; then
-	$ROOT/Base/Tools/Utilities/ngrok.sh ngrok --token 7nsnZzeTKzAkoXQ5bePpv_7FvzW7BanpsCzA943wfig --port 5901
+	if [[ ${#NGROK} -gt 0 ]]; then
+		info "we're opening a tunnel \$($ROOT/Base/Tools/Utilities/ngrok.sh ngrok --token $NGROK --port 5901), you can use vnc-client to connect to it"
+	fi
 fi
 
 info "Begin to test Ibus-Unikey"
 
-for DISTRO in \$(ls -1c $ROOT/Tests/Pipeline/Environments); do
-	source $ROOT/Tests/Pipeline/Environments/\$DISTRO
+for DISTRO in \$(ls -1c $ROOT/tests/pipeline/environments); do
+	source $ROOT/tests/pipeline/environments/\$DISTRO
+
+	SSHOPTs="-o StrictHostKeyChecking=no"
+	URL="\$(username)@192.168.100.2"
 
 	IDX=\$((IDX+1))
+	AVAILABLE=0
 
-	for I in {0..500}; do
-		if ! sshpass -p "\$(password)" ssh "\$(username)"@192.168.100.2 -tt exit 0; then
-			sleep 1
+	for I in {0..50}; do
+		if ! sshpass -p "\$(password)" ssh \$SSHOPTs \$URL -tt exit 0 &> /dev/null; then
+			sleep 10
+		else
+			AVAILABLE=1
+
+			info "machine \$DISTRO is available now, going to test our test suites"
+			break
 		fi
 	done
 
-	if [ -f $ROOT/pxeboot/pxelinux.cfg/default.\${IDX} ]; then
+	if [[ \$PASSED -eq 0 ]]; then
+		warning "there some issue with distro \$DISTRO"
+	fi
+
+	if [[ \$AVAILABLE -eq 0 ]]; then
+		error "it seems the VM take so much time to become available"
+	elif [ -f $ROOT/pxeboot/pxelinux.cfg/default.\${IDX} ]; then
 		mv $ROOT/pxeboot/pxelinux.cfg/default.\${IDX} $ROOT/pxeboot/pxelinux.cfg/default
 	else
 		break
 	fi
 done
 
-info "Finish testing Ibus-Unikey"
+if [[ \$PASSED -eq 1 ]]; then
+	info "Finish testing Ibus-Unikey"
+else
+	exit -1
+fi
 EOF
 		$SU chmod +x $ROOT/Tests/Pipeline/Test.sh
 		$SU chmod -R 755 $ROOT/pxeboot

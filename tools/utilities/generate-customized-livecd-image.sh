@@ -146,6 +146,10 @@ if [ "$ITYPE" = 'iso' ]; then
 		PASSWORD=$(echo $MEGA | awk '{ split($0,a,":"); print a[2] }')
 	fi
 
+	if [[ ${#PROJECT} -eq 0 ]]; then
+		PROJECT=$(basename $ROOT)
+	fi
+
 	if [[ $GENIMAGE -eq 0 ]]; then
 		CACHE=${NAME}.squashfs
 		MIRROR=$WORKSPACE/livecd/casper
@@ -157,8 +161,6 @@ if [ "$ITYPE" = 'iso' ]; then
 	if [[ ${#MEGA} -gt 0 ]] && megaget --path $(pwd)/${NAME}.ver --username $USER --password $PASSWORD /Root/$PROJECT/${NAME}.ver; then
 		if [ "$VERSION" != "$(cat $(pwd)/${NAME}.ver)" ]; then
 			MEGA=""
-
-			echo "$VERSION" > $(pwd)/${NAME}.ver
 
 			megarm --username $USER --password $PASSWORD /Root/$PROJECT/${NAME}.ver
 			megarm --username $USER --password $PASSWORD /Root/$PROJECT/${CACHE}
@@ -287,6 +289,8 @@ else
 
 		if [[ ${#USER} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
 			info "upload $MIRROR to global storage"
+
+			echo "$VERSION" > $(pwd)/${NAME}.ver
 
 			if ! megaput --path /Root/$PROJECT/$CACHE --username $USER --password $PASSWORD $MIRROR; then
 				warning "can't upload $MIRROR to global storage"

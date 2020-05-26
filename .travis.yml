@@ -17,5 +17,5 @@ install:
   - if [ -f /dev/kvm ]; then echo "/dev/kvm exists"; fi
 
 script:
-  - ./Tests/Pipeline/Prepare.sh --dry-run
+  - ./tests/pipeline/prepare.sh --dry-run
   - ./Base/Tests/Pipeline/Create.sh

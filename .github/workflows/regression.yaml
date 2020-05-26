@@ -3,7 +3,7 @@ name: Check if the new PR is working well
 on: 
   pull_request:
     branchs:
-      - Tests
+      - master
 
 jobs:
   build:
