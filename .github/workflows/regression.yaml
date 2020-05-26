@@ -19,7 +19,7 @@ jobs:
       - name: prepare
         run: while ! sudo apt install qemu; do if ! which qemu-system-x86_64; then sleep 1; else break; fi; done
       - name: fetch base libraries
-        run: ./Tests/Pipeline/Prepare.sh --dry-run
+        run: ./tests/pipeline/prepare.sh --dry-run
       - name: build and test
         env:
           CXX: ${{ matrix.cxx }}
