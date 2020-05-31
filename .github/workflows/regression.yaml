@@ -24,4 +24,5 @@ jobs:
         env:
           CXX: ${{ matrix.cxx }}
           MEGA: ${{ secrets.MEGA }}
+          NGROK: ${{ secrets.NGROK }}
         run: ./Base/Tests/Pipeline/Create.sh
