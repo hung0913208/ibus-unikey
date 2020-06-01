@@ -6,6 +6,7 @@ ROOT="$(git rev-parse --show-toplevel)"
 
 source $PIPELINE/libraries/Logcat.sh
 source $PIPELINE/libraries/Package.sh
+source $PIPELINE/libraries/Console.sh
 
 SCRIPT="$(basename "$0")"
 
@@ -94,10 +95,13 @@ for DISTRO in $(ls -1c $ROOT/tests/pipeline/environments); do
 			sleep 10
 		else
 			AVAILABLE=1
+			CURRENT=$(pwd)
 
 			info "machine $DISTRO is available now, going to test our test suites"
 
 			for ITEM in $(ls -1c $ROOT/tests); do
+				cd $CURRENT
+
 				if [ $ITEM = "pipeline" ]; then
 					continue
 				elif [ ! -d $ROOT/tests/$ITEM ]; then
