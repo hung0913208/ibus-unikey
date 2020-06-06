@@ -115,7 +115,15 @@ for DISTRO in $(ls -1c $ROOT/tests/pipeline/environments); do
 				export ADDRESS="192.168.100.2"
 
 				for STEP in $(ls -1c $SUITE/steps | sort); do
-					. $SUITE/steps/$STEP
+					EXT="${STEP##*.}"
+
+					if [ $EXT = 'sh' ]; then
+						. $SUITE/steps/$STEP
+					elif ! copy_to_test_machine $SUITE/step/$STEP; then
+						error "fail to copy $STEP to $MACHINE"
+					elif ! exec_on_test_machine "DISPLAY=:0 ~/$STEP"; then
+						error "fail at step $STEP"
+					fi
 				done
 			done
 			break
