@@ -1,14 +1,16 @@
-import unittest, os, signal
+import unittest, os, signal, sys
 
 from dogtail import tree
 from dogtail.config import config
-from dogtail.procedural import focus, click, run
-from dogtail.rawinput import typeText
+from dogtail.procedural import focus, click, run, FocusWidget, FocusDialog, FocusWindow, FocusApplication
+from dogtail.rawinput import typeText, keyCombo
 from dogtail.utils import screenshot
 from dogtail.predicate import GenericPredicate
 
 # @NOTE: i'm considering move these function to be as gedit helpers so we
 # can reuse them to many more test-cases
+
+method = 'telex'
 
 def run_ui_typing_helper(cache, text):
     if os.path.isfile(cache):
@@ -21,7 +23,7 @@ def run_ui_typing_helper(cache, text):
 
     try:
         focus.application('gedit')
-
+     
         focus.text()
         typeText(text)
 
@@ -55,15 +57,19 @@ def run_ui_typing_helper(cache, text):
                 finally:
                     saved = True
 
+            focus.application('gedit')
+
             # Let's quit now.
             try:
-                click('File')
+                # @NOTE: maybe we can't access the menu and click the item `Quit`
+                # at menu `File`
+
+                click.menu('File')
+                click.menuItem('Quit')
             except Exception as error:
-                print(error)
-            finally:
-                click('Quit')
+                keyCombo('<Control>q')
         except Exception as error:
-            print(error)
+            print('can\'t quit app, here is the reason: {}'.format(error))
             os.kill(pid, signal.SIGKILL)
 
     if saved:
@@ -76,15 +82,20 @@ class TestKeyboardTyping(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestKeyboardTyping, self).__init__(*args, **kwargs)
 
-    def test_typing_to_gedit(self):
-        steps = [
-            ('i\'m typing \'hello world\' using dogtail',
-             'i\'m typing \'hello world\' using dogtail\n')
-        ]
+    def test_typing_vietnamese_style(self):
+        if method == 'telex':
+            steps = [
+                ('xin chaof, tooi laf mootj con autobot đuowcj xaya dungj ddeer tesst ibus-unikey',
+                 'xin chào, tôi là một con autobot được xây dựng để test ibus-unikey\n')
+            ]
+        elif method == 'vni':
+            steps = [
+                ('xin chao2, to6i la2 mo65t con autobot d9uo75c xa6y du7ng5 d9e63 test ibus-unikey',
+                 'xin chào, tôi là một con autobot được xây dựng để test ibus-unikey\n')
+            ]
 
         for typing, expect in steps:
-            result = run_ui_typing_helper('/tmp/test_typing_to_gedit.txt',
-                                          typing)
+            result = run_ui_typing_helper('/tmp/0001.txt', typing)
             self.assertEqual(result, expect)
 
 if __name__ == '__main__':
@@ -95,4 +106,8 @@ if __name__ == '__main__':
     #config.debugSearching = True
     #config.debugTranslation = True
 
+    if len(sys.argv) > 1:
+        method = sys.argv.pop()
+    else:
+        method = 'telex'
     unittest.main()
