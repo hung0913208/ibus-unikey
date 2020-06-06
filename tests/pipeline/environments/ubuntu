@@ -78,9 +78,9 @@ function extract() {
 }
 
 function is_fully_started() {
-	if ! sshpass -p rootroot ssh -o LogLevel=QUIET root@$1 'ps -aux | grep nautilus | grep -v grep' &> /dev/null; then
+	if ! sshpass -p rootroot ssh -o LogLevel=QUIET root@$1 'ps -aux | grep ibus-daemon | grep -v grep' &> /dev/null; then
 		return -1
-	elif ! sshpass -p ubuntu ssh -o LogLevel=QUIET ubuntu@$1 'gsettings set org.gnome.desktop.interface toolkit-accessibility true' &> /dev/null; then
+	elif ! sshpass -p ubuntu ssh -o LogLevel=QUIET ubuntu@$1 'gsettings set org.gnome.desktop.interface toolkit-accessibility true'; then
 		return -1
 	else
 		sleep 10
