@@ -14,7 +14,7 @@ for SPEC in ${SPECs[@]}; do
 
 	info "start testing with build mode $SPEC"
 	
-	exec_on_test_machine "DISPLAY=:0 GTK_IM_MODULE=ibus ibus engine"
+	DEFAULT_ENGINE=$(exec_on_test_machine "DISPLAY=:0 GTK_IM_MODULE=ibus ibus engine")
 
 	if ! exec_on_test_machine_without_output "cd ~/ibus-unikey/build/$SPEC && sudo make install"; then
 		error "can't install to /home/$(username)/$SPEC"
@@ -39,4 +39,8 @@ for SPEC in ${SPECs[@]}; do
 			fi
 		done
 	done
+	
+	if ! exec_on_test_machine "DISPLAY=:0 GTK_IM_MODULE=ibus ibus engine $DEFAULT_ENGINE"; then
+		error "can't switch back to default engine $DEFAULT_ENGINE"
+	fi
 done
