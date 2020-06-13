@@ -11,6 +11,30 @@ source $PIPELINE/libraries/Console.sh
 SCRIPT="$(basename "$0")"
 
 function clean() {
+	# @NOTE: take a screenshot and upload to mega for troubleshoting
+	if [[ ${#MEGA} -gt 0 ]]; then
+		USER=$(echo $MEGA | awk '{ split($0,a,":"); print a[1] }')
+		PASSWORD=$(echo $MEGA | awk '{ split($0,a,":"); print a[2] }')
+		
+		for ITEM in $(ls -1c $ROOT/tests); do
+			if [ $ITEM = "pipeline" ]; then
+				continue
+			elif [ ! -d $ROOT/tests/$ITEM ]; then
+				continue
+			elif [ ! -d $ROOT/tests/$ITEM/steps ]; then
+				continue
+			fi
+		
+			if copy_from_test_machine "/tmp/$ITEM" "$ROOT"; then
+				for SCREEN in $(ls -1c $ROOT/$ITEM); do
+					megaput --path /Root/$PROJECT/$SCREEN --username $USER --password $PASSWORD $ROOT/$ITEM/$SCREEN
+				done
+			fi
+		
+			rm -fr $ROOT/$CASE
+		done
+	fi
+
 	for I in {0..50}; do
 		if [[ $INTERACT -eq 1 ]]; then
 			info "this log is showed to prevent the ci stop the hanging pipeline"

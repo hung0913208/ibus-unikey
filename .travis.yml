@@ -1,8 +1,5 @@
 dist: bionic
 language: cpp
-branches:
-  only:
-    - master
 
 before_install:
   - sudo apt-get install -y libibus-1.0-dev libgtk-3-dev

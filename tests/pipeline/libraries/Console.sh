@@ -3,6 +3,24 @@ ROOT="$(git rev-parse --show-toplevel)"
 
 source $ROOT/tests/pipeline/libraries/Package.sh
 
+function copy_from_test_machine() {
+	if [[ ${#MACHINE} -gt 0 ]]; then
+		source $ROOT/tests/pipeline/environments/$MACHINE
+	else
+		return -1
+	fi
+
+	if [[ ${#ADDRESS} -gt 0 ]]; then
+		SSHOPTs="-o StrictHostKeyChecking=no"
+
+		if ! sshpass -p "$(password)" scp $SSHOPTs -r "$(username)@$ADDRESS:$1" $2; then
+			return -3
+		fi
+	else
+		return -4
+	fi
+}
+
 function copy_to_test_machine() {
 	if [[ ${#MACHINE} -gt 0 ]]; then
 		source $ROOT/tests/pipeline/environments/$MACHINE
